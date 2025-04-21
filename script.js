@@ -3,17 +3,19 @@ const MAX = 999;
 const pinInput = document.getElementById('pin');
 const sha256HashView = document.getElementById('sha256-hash');
 const resultView = document.getElementById('result');
-
-// a function to store in the local storage
+ const checkButton =document.getElementById('check');
+ console.log('check button :',checkButton);
+// Store data in localStorage
 function store(key, value) {
   localStorage.setItem(key, value);
 }
 
-// a function to retrieve from the local storage
+// Retrieve data from localStorage
 function retrieve(key) {
   return localStorage.getItem(key);
 }
 
+// Generate a random 3-digit number between MIN and MAX
 function getRandomArbitrary(min, max) {
   let cached;
   cached = Math.random() * (max - min) + min;
@@ -21,117 +23,90 @@ function getRandomArbitrary(min, max) {
   return cached;
 }
 
-// a function to clear the local storage
+// Clear localStorage
 function clear() {
   localStorage.clear();
 }
 
-// a function to generate sha256 hash of the given string
+// Generate sha256 hash of a string
 async function sha256(message) {
-  // encode as UTF-8
-  const msgBuffer = new TextEncoder().encode(message);
-
-  // hash the message
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-
-  // convert ArrayBuffer to Array
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-
-  // convert bytes to hex string
-  const hashHex = hashArray
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return hashHex;
+  const msgBuffer = new TextEncoder().encode(message); // Encode message to UTF-8
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); // Generate hash
+  const hashArray = Array.from(new Uint8Array(hashBuffer)); // Convert buffer to array
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join(''); // Convert array to hex string
 }
 
+// Get or generate SHA-256 hash for a random PIN
 async function getSHA256Hash() {
   let cached = retrieve('sha256');
   if (cached) {
-    return cached;
+    return cached; // Return cached value if available
   }
-
-  cached = await sha256(getRandomArbitrary(MIN, MAX));
-  store('sha256', cached);
+  cached = await sha256(getRandomArbitrary(MIN, MAX).toString()); // Generate hash for random PIN
+  store('sha256', cached); // Save hash in localStorage
   return cached;
 }
 
+// Main logic to display SHA256 hash
 async function main() {
   sha256HashView.innerHTML = 'Calculating...';
   const hash = await getSHA256Hash();
-  sha256HashView.innerHTML = hash;
+  sha256HashView.innerHTML = hash; // Display SHA256 hash
 }
 
+// Handle user input and check if the PIN matches the hash
 async function test() {
   const pin = pinInput.value;
-
   if (pin.length !== 3) {
-    resultView.innerHTML = '💡 not 3 digits';
+    resultView.innerHTML = '💡 PIN must be 3 digits';
     resultView.classList.remove('hidden');
     return;
   }
 
-  const sha256HashView = document.getElementById('sha256-hash');
-  const hasedPin = await sha256(pin);
+  const sha256Hash = sha256HashView.innerHTML;
+  const hashedPin = await sha256(pin);
 
-  if (hasedPin === sha256HashView.innerHTML) {
-    resultView.innerHTML = '🎉 success';
+  if (hashedPin === sha256Hash) {
+    resultView.innerHTML = '🎉 Success!';
     resultView.classList.add('success');
   } else {
-    resultView.innerHTML = '❌ failed';
+    resultView.innerHTML = '❌ Incorrect PIN';
+    resultView.classList.remove('hidden');
   }
-  resultView.classList.remove('hidden');
 }
 
-// ensure pinInput only accepts numbers and is 3 digits long
-pinInput.addEventListener('input', (e) => {
-  const { value } = e.target;
-  pinInput.value = value.replace(/\D/g, '').slice(0, 3);
-});
-
-// Function to set a cookie
-function setCookie(name, value, days) {
-  const date = new Date();
-  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
-  const expires = `expires=${date.toUTCString()}`;
-  document.cookie = `${name}=${value}; ${expires}; path=/`;
-}
-
-// Function to get a cookie by name
-function getCookie(name) {
-  const cookies = document.cookie.split('; ');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.split('=');
-    if (key === name) {
-      return value;
+// Brute-force to find the correct PIN for debugging (not for production)
+async function bruteForceHash() {
+  const targetHash = sha256HashView.innerHTML;
+  for (let i = MIN; i <= MAX; i++) {
+    const pin = i.toString();
+    const hash = await sha256(pin);
+    if (hash === targetHash) {
+      console.log(`Found the PIN: ${pin}`);
+      break;
     }
   }
-  return null;
 }
 
-// Function to handle username input and set it in a cookie
-function handleUsername() {
-  const username = prompt('Enter your username:');
-  if (username) {
-    setCookie('username', username, 7); // Cookie expires in 7 days
-    alert(`Username "${username}" has been saved in a cookie.`);
-  }
-}
+// Ensure the pin input is only 3 digits long and numeric
+pinInput.addEventListener('input', (e) => {
+  const { value } = e.target;
+  pinInput.value = value.replace(/\D/g, '').slice(0, 3); // Keep only digits, max 3 characters
+});
 
-// Display the stored username from the cookie
-function displayUsername() {
-  const username = getCookie('username');
-  if (username) {
-    alert(`Welcome back, ${username}!`);
-  } else {
-    alert('No username found. Please set your username.');
-  }
-}
-
-// Attach event listeners for username handling
-document.getElementById('set-username').addEventListener('click', handleUsername);
-document.getElementById('get-username').addEventListener('click', displayUsername);
-
-// attach the test function to the button
+// Attach the test function to the button click event
 document.getElementById('check').addEventListener('click', test);
 
+// Optionally, run brute force for debugging (you can disable this part for production)
+(async () => {
+  const targetHash = localStorage.getItem('sha256');
+
+  for (let i = 100; i <= 999; i++) {
+    const hash = await sha256(i.toString());
+    if (hash === targetHash) {
+      console.log(`✅ Found the number: ${i}`);
+      break;
+    }
+  }
+})();
 main();
